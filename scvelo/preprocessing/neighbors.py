@@ -64,17 +64,21 @@ def neighbors(adata, n_neighbors=30, n_pcs=30, use_rep=None, knn=True, random_st
     adata = adata.copy() if copy else adata
     if adata.isview: adata._init_as_actual(adata.copy())
 
-    if (use_rep is None or use_rep is 'X_pca') \
-            and ('X_pca' not in adata.obsm.keys() or n_pcs > adata.obsm['X_pca'].shape[1]):
+    rep_to_use = use_rep
+    if use_rep is None:
+        rep_to_use = 'X' if adata.n_vars < 50 else 'X_pca'
+
+    if (rep_to_use is 'X_pca') and (('X_pca' not in adata.obsm.keys()) or (n_pcs > adata.obsm['X_pca'].shape[1])):
         pca(adata, n_comps=n_pcs, svd_solver='arpack')
 
-    adata.uns['neighbors'] = {}
-    adata.uns['neighbors']['params'] = {'n_neighbors': n_neighbors, 'method': method}
+    adata.uns['neighbors'] = {'params': {'n_neighbors': n_neighbors, 'method': method}}
 
     if method is 'sklearn':
         from sklearn.neighbors import NearestNeighbors
+        logg.info("Using representation {}".format(rep_to_use))
+
         neighbors = NearestNeighbors(n_neighbors=n_neighbors)
-        neighbors.fit(adata.obsm['X_pca'] if use_rep is None else adata.obsm[use_rep])
+        neighbors.fit(adata.obsm[rep_to_use] if use_rep is not 'X' else adata.X)
         adata.uns['neighbors']['distances'] = neighbors.kneighbors_graph(mode='distance')
         adata.uns['neighbors']['connectivities'] = neighbors.kneighbors_graph(mode='connectivity')
 
